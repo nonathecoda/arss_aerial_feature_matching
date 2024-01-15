@@ -184,6 +184,16 @@ class Homography_Finder:
         self.display_img = np.hstack((self.img_optical, self.img_thermal))
 
 if __name__ == "__main__":
+    '''
+    Find homographies manually for each image pair.
+    Image pair: map each thermal to each optica
+    
+    '''
+    path_to_data = "/Users/antonia/dev/UNITN/remote_sensing_systems/data/ARSS_P3"
+
+
+
+
     h_finder = Homography_Finder()
     while h_finder.restart == True:
         h_finder.reset()
