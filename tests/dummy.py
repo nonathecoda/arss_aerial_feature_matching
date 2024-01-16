@@ -11,6 +11,35 @@ import matplotlib.pyplot as plt
 import cv2
 import numpy as np
 
+file_labels_training = "/Users/antonia/dev/UNITN/remote_sensing_systems/arss_aerial_feature_matching/groundtruth_gui/labels_training.hdf5"
+
+with h5py.File(file_labels_training, 'r') as f:
+        #print(f.keys())
+        ic(f.keys())
+        keyzero = list(f.keys())[0]
+        print(f[keyzero].keys())
+        #ic(list(f[keyzero]['keypoints']))
+        
+        
+
+file_training = "/Users/antonia/dev/UNITN/remote_sensing_systems/arss_aerial_feature_matching/groundtruth_gui/training.hdf5"
+
+with h5py.File(file_training, 'r') as f:
+        ic(f.keys())
+        keyzero = list(f.keys())[0]
+        ic(f[keyzero].keys())
+        
+        img = np.hstack((np.array(f[keyzero]['optical']), np.array(f[keyzero]['thermal'])))
+        '''while(1):
+            cv2.imshow('Image Pair with Keypoints', img)
+            if cv2.waitKey(20) & 0xFF == 27:
+                break
+        cv2.destroyAllWindows()
+        '''
+
+
+exit()
+
 # Load the images
 cam1 = "/Users/antonia/Desktop/Screenshot 2024-01-14 at 15.29.24.png"
 img_optical = cv2.imread(cam1, 0)

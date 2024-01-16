@@ -3,15 +3,40 @@ import cv2
 import numpy as np
 from matplotlib import pyplot as plt
 from scipy.optimize import minimize
+import os
+import h5py
+import atexit
+
+
+def cleanup(training_file, labels_training_file):
+    training_file.close()
+    labels_training_file.close()
+    print("This code runs at exit")
+
+def remove_duplicates(path_to_image_pairs):
+    unique_lines = set()
+    ordered_lines = []
+
+    # Read the file and keep the order, skipping duplicates
+    with open(path_to_image_pairs, 'r') as file:
+        for line in file:
+            stripped_line = line.strip()
+            if stripped_line not in unique_lines:
+                unique_lines.add(stripped_line)
+                ordered_lines.append(line)  # Preserve the original line, including whitespace
+
+    # Write the ordered lines back to the file
+    with open(path_to_image_pairs, 'w') as file:
+        file.writelines(ordered_lines)
 
 
 class Homography_Finder:
 
-    def __init__(self):
+    def __init__(self, imagepair):
         self.restart = True
 
-        self.keypoints_img1 = []
-        self.keypoints_img2 = []
+        self.keypoints_optical = []
+        self.keypoints_thermal = []
 
         self.warped_optical = None
         self.img_optical = None
@@ -23,12 +48,13 @@ class Homography_Finder:
         self.H_optimized_2 = None
 
         self.H_final = None
-    
+        self.final_warped_optical = None
+
         # Load the images
-        cam1 = "/Users/antonia/dev/UNITN/remote_sensing_systems/data/ARSS_P3/cam1/cam1_00225_e_0012_g_01_130705107_corr_rect.tiff"
+        cam1 = "/Users/antonia/dev/UNITN/remote_sensing_systems/data/ARSS_P3/cam1/" + imagepair[0]
         img_optical = cv2.imread(cam1, 0)
-        cam1 = "/Users/antonia/dev/UNITN/remote_sensing_systems/data/ARSS_P3/cam2/cam2_00225_e_0012_g_01_130705107_corr_rect.tiff"
-        img_thermal = cv2.imread(cam1, 0)
+        camT = "/Users/antonia/dev/UNITN/remote_sensing_systems/data/ARSS_P3/camT/" + imagepair[1]
+        img_thermal = cv2.imread(camT, 0)
 
         #resize images to 233, 314
         img_optical = cv2.resize(img_optical, (312, 232))
@@ -49,40 +75,41 @@ class Homography_Finder:
     def show_img(self):
         
         # Create a window and set the mouse callback
-        cv2.namedWindow('Find 4 keypoint pairs, then press "esc"')
-        cv2.setMouseCallback('Find 4 keypoint pairs, then press "esc"', self.mouse_callback)
+        cv2.namedWindow('Find 4 keypoint pairs, then press "d"')
+        cv2.setMouseCallback('Find 4 keypoint pairs, then press "d"', self.mouse_callback)
 
         # Display the images initially
         while(1):
-            cv2.imshow('Find 4 keypoint pairs, then press "esc"', self.display_img)
-            if cv2.waitKey(20) & 0xFF == 27:
+            cv2.imshow('Find 4 keypoint pairs, then press "d"', self.display_img)
+            if cv2.waitKey(20) & 0xFF == 100:
                 break
+            elif cv2.waitKey(20) & 0xFF == 27:
+                cv2.destroyAllWindows()
+                exit()
         cv2.destroyAllWindows()
 
         # Print the manually selected keypoints for each image
         print("Manually selected keypoints for Image 1:")
-        for i, point in enumerate(self.keypoints_img1, 1):
+        for i, point in enumerate(self.keypoints_optical, 1):
             print(f"Keypoint {i}: ({point[0]}, {point[1]})")
 
         print("\nManually selected keypoints for Image 2:")
-        for i, point in enumerate(self.keypoints_img2, 1):
+        for i, point in enumerate(self.keypoints_thermal, 1):
             print(f"Keypoint {i}: ({point[0]}, {point[1]})")
         
     def mouse_callback(self, event, x, y, flags, params):
             if event == cv2.EVENT_LBUTTONDOWN:
                 cv2.circle(self.display_img, (x, y), 3, (0, 255, 0), -1)
                 if x >= self.x_offset:
-                    self.keypoints_img2.append((x-self.x_offset, y))
-                    print("rechtes bild")
+                    self.keypoints_thermal.append((x-self.x_offset, y))
                 else:
-                    self.keypoints_img1.append((x, y))
-                    print("linkes bild")
+                    self.keypoints_optical.append((x, y))
                 # Display the images with keypoints
-                cv2.imshow('Find 4 keypoint pairs, then press "esc"', self.display_img)
+                cv2.imshow('Find 4 keypoint pairs, then press "d"', self.display_img)
 
     def calc_manual_H(self):
         try:
-            self.H_manual = cv2.findHomography(np.array(self.keypoints_img1), np.array(self.keypoints_img2), cv2.RANSAC)[0]
+            self.H_manual = cv2.findHomography(np.array(self.keypoints_optical), np.array(self.keypoints_thermal), cv2.RANSAC)[0]
             self.warped_optical = cv2.warpPerspective(self.img_optical, self.H_manual, dsize=(self.img_thermal.shape[1], self.img_thermal.shape[0]), flags=cv2.INTER_CUBIC)
         except cv2.error:
             self.restart = True
@@ -105,7 +132,6 @@ class Homography_Finder:
         hist_2d, x_edges, y_edges = np.histogram2d(warped_img1.ravel(), img2.ravel(),bins=bins)
         #compute MI score
         mi_score = self.mutual_information(hist_2d)
-        ic(mi_score)
         return mi_score
     
     def mutual_information(self, hgram):
@@ -127,20 +153,25 @@ class Homography_Finder:
                 plt.close()  # Close the window when 'q' is pressed
             elif event.key == '1':
                 self.H_final = self.H_manual
+                self.final_warped_optical = warped_optical_m
+                ic(self.final_warped_optical is None)
                 print("Chose manual homography")
-                plt.close()  # Close the window when 'q' is pressed
+                plt.close()  
             elif event.key == '2':
                 self.H_final = self.H_optimized_0
+                self.final_warped_optical = warped_optical_o_0
                 print("Chose optimized homography 0")
-                plt.close()  # Close the window when 'q' is pressed
+                plt.close()  
             elif event.key == '3':
                 self.H_final = self.H_optimized_1
+                self.final_warped_optical = warped_optical_o_1
                 print("Chose optimized homography 0")
-                plt.close()  # Close the window when 'q' is pressed
+                plt.close()  
             elif event.key == '4':
                 self.H_final = self.H_optimized_2
+                self.final_warped_optical = warped_optical_o_2
                 print("Chose optimized homography 0")
-                plt.close()  # Close the window when 'q' is pressed 
+                plt.close() 
             elif event.key == 'r':
                 print("restart")
                 plt.close()
@@ -148,66 +179,119 @@ class Homography_Finder:
         
         # manual homography
         warped_optical_m = cv2.warpPerspective(self.img_optical, self.H_manual, dsize=(self.img_thermal.shape[1], self.img_thermal.shape[0]), flags=cv2.INTER_CUBIC)
-        # optimized homography
-        warped_optical_o_0 = cv2.warpPerspective(self.warped_optical, self.H_optimized_0, dsize=(self.img_thermal.shape[1], self.img_thermal.shape[0]), flags=cv2.INTER_CUBIC)
-        #... other homographies
-        warped_optical_o_1 = cv2.warpPerspective(self.warped_optical, self.H_optimized_1, dsize=(self.img_thermal.shape[1], self.img_thermal.shape[0]), flags=cv2.INTER_CUBIC)
-        warped_optical_o_2 = cv2.warpPerspective(self.warped_optical, self.H_optimized_2, dsize=(self.img_thermal.shape[1], self.img_thermal.shape[0]), flags=cv2.INTER_CUBIC)
-        
         # plot different homographies
         f, axarr = plt.subplots(1,4, figsize=(20, 10))
         axarr[0].imshow(self.img_thermal, cmap='gray')
         axarr[0].imshow(warped_optical_m, cmap='gray', alpha=0.5)
         axarr[0].set_title('Manual H - Key 1')
-        axarr[1].imshow(self.img_thermal, cmap='gray')
-        axarr[1].imshow(warped_optical_o_0, cmap='gray', alpha=0.5)
-        axarr[1].set_title('Optimized H 0 - Key 2')
-        axarr[2].imshow(self.img_thermal, cmap='gray')
-        axarr[2].imshow(warped_optical_o_1, cmap='gray', alpha=0.5)
-        axarr[2].set_title('Optimized H 1 - Key 3')
-        axarr[3].imshow(self.img_thermal, cmap='gray')
-        axarr[3].imshow(warped_optical_o_2, cmap='gray', alpha=0.5)
-        axarr[3].set_title('Optimized H 2 - Key 4')
+
+        try:
+            # optimized homography
+            warped_optical_o_0 = cv2.warpPerspective(self.warped_optical, self.H_optimized_0, dsize=(self.img_thermal.shape[1], self.img_thermal.shape[0]), flags=cv2.INTER_CUBIC)
+            #... other homographies
+            warped_optical_o_1 = cv2.warpPerspective(self.warped_optical, self.H_optimized_1, dsize=(self.img_thermal.shape[1], self.img_thermal.shape[0]), flags=cv2.INTER_CUBIC)
+            warped_optical_o_2 = cv2.warpPerspective(self.warped_optical, self.H_optimized_2, dsize=(self.img_thermal.shape[1], self.img_thermal.shape[0]), flags=cv2.INTER_CUBIC)
+            
+            axarr[1].imshow(self.img_thermal, cmap='gray')
+            axarr[1].imshow(warped_optical_o_0, cmap='gray', alpha=0.5)
+            axarr[1].set_title('Optimized H 0 - Key 2')
+            axarr[2].imshow(self.img_thermal, cmap='gray')
+            axarr[2].imshow(warped_optical_o_1, cmap='gray', alpha=0.5)
+            axarr[2].set_title('Optimized H 1 - Key 3')
+            axarr[3].imshow(self.img_thermal, cmap='gray')
+            axarr[3].imshow(warped_optical_o_2, cmap='gray', alpha=0.5)
+            axarr[3].set_title('Optimized H 2 - Key 4')
+        except cv2.error:
+            warped_optical_o_0 = None
+            warped_optical_o_1 = None
+            warped_optical_o_2 = None
+            print("No optimization.")
+           
         plt.connect('key_press_event', choose_homography_key_event)
         plt.show()
     
     def reset(self):
         self.restart = False
-        self.keypoints_img1 = []
-        self.keypoints_img2 = []
+        self.keypoints_optical = []
+        self.keypoints_thermal = []
         self.H_manual = None
         self.H_optimized_0 = None
         self.H_optimized_1 = None
         self.H_optimized_2 = None
         self.H_final = None
         self.warped_optical = None
+        self.final_warped_optical = None
         self.display_img = np.hstack((self.img_optical, self.img_thermal))
 
 if __name__ == "__main__":
+    
+    user_input = input("Do you want to execute the code? All hdf5 files will be overwritten. (yes/no): ")
+
+    # Check the user's response
+    if user_input.lower() == 'yes':
+        print("Executing the code...")
+        # Place your code here that you want to execute
+    else:
+        print("Execution cancelled.")
+        exit()
+
+    counter = 0
+
+    path_training_file = "/Users/antonia/dev/UNITN/remote_sensing_systems/arss_aerial_feature_matching/groundtruth_gui/data/training.hdf5"
+    if os.path.exists(path_training_file):
+        # Delete the file
+        os.remove(path_training_file)
+    training_file = h5py.File(path_training_file, 'w')
+
+    path_labels_training_file = "/Users/antonia/dev/UNITN/remote_sensing_systems/arss_aerial_feature_matching/groundtruth_gui/data/labels_training.hdf5"
+    if os.path.exists(path_labels_training_file):
+        # Delete the file
+        os.remove(path_labels_training_file)
+    labels_training_file = h5py.File(path_labels_training_file, 'w')
+
+
+    atexit.register(cleanup, training_file, labels_training_file)
+
     '''
     Find homographies manually for each image pair.
     Image pair: map each thermal to each optica
     
     '''
     path_to_data = "/Users/antonia/dev/UNITN/remote_sensing_systems/data/ARSS_P3"
+    path_to_image_pairs = "/Users/antonia/dev/UNITN/remote_sensing_systems/arss_aerial_feature_matching/groundtruth_gui/pairs.txt"
 
+    remove_duplicates(path_to_image_pairs)
 
+    # TODO: start with pairs cam1  - T, then replace cam1 with cam2, cam3, cam4
+    image_pair_file = open(path_to_image_pairs, 'r')
 
+    for line in image_pair_file:
+        imagepair = line.strip().split(", ")
+        h_finder = Homography_Finder(imagepair)
+        while h_finder.restart == True:
+            h_finder.reset()
+            h_finder.show_img()
+            h_finder.calc_manual_H()
+            if h_finder.restart == True:
+                continue
+            bins_0 = [312, 156] #(312, 232))
+            bins_1 = [200, 100]
+            bins_2 = [46, 23]
+            #h_finder.H_optimized_0 = h_finder.optimize_homography(bins_0)
+            #h_finder.H_optimized_1 = h_finder.optimize_homography(bins_1)
+            #h_finder.H_optimized_2 = h_finder.optimize_homography(bins_2)
+            h_finder.choose_homography()
 
-    h_finder = Homography_Finder()
-    while h_finder.restart == True:
-        h_finder.reset()
-        h_finder.show_img()
-        h_finder.calc_manual_H()
-        if h_finder.restart == True:
-            continue
-        bins_0 = [312, 156] #(312, 232))
-        bins_1 = [200, 100]
-        bins_2 = [46, 23]
-        h_finder.H_optimized_0 = h_finder.optimize_homography(bins_0)
-        h_finder.H_optimized_1 = h_finder.optimize_homography(bins_1)
-        h_finder.H_optimized_2 = h_finder.optimize_homography(bins_2)
-        h_finder.choose_homography()
+        #plt.imshow(h_finder.final_warped_optical, cmap='gray')
+        #plt.show()
 
+        #save warped optical and thermal image to "training.hdf5"
+        group = training_file.create_group(str(counter))
+        dataset = group.create_dataset("optical", data=np.array(h_finder.final_warped_optical))
+        dataset = group.create_dataset("thermal", data=np.array(h_finder.img_thermal))
 
-    ic(h_finder.H_final)
+        # save keypoints_thermal to "labels_training.hdf5"
+        group = labels_training_file.create_group(str(counter))
+        dataset = group.create_dataset("keypoints", data=np.array(h_finder.keypoints_thermal))
+
+        counter += 1
