@@ -3,7 +3,7 @@ import cv2
 import numpy as np
 from matplotlib import pyplot as plt
 import os
-
+import time
 
 class GUI:
 
@@ -12,7 +12,8 @@ class GUI:
         self.path_to_cam_1_folder = "/Users/antonia/dev/UNITN/remote_sensing_systems/data/ARSS_P3/cam1"
         self.path_to_cam_T_folder = "/Users/antonia/dev/UNITN/remote_sensing_systems/data/ARSS_P3/camT"
 
-        chosen_pairs = '/Users/antonia/dev/UNITN/remote_sensing_systems/arss_aerial_feature_matching/groundtruth_gui/pairs.txt'
+        current_time = time.strftime("_%H_%M_%S", time.localtime())
+        chosen_pairs = '/Users/antonia/dev/UNITN/remote_sensing_systems/arss_aerial_feature_matching/groundtruth_gui/data/pairs/datapairs' + str(current_time) + '.txt'
         self.pairs_file = open(chosen_pairs, 'w')
 
         self.img_optical = None
@@ -35,6 +36,22 @@ class GUI:
             path_to_cam1_img = os.path.join(self.path_to_cam_1_folder, item1)
             for itemT in self.items_camT:
                 j += 1
+                if i > 70 and j < 50:
+                    continue
+                elif i > 107 and j < 75:
+                    continue
+                elif i > 130 and j < 95:
+                    continue
+                elif i > 150 and j < 110:
+                    continue
+                elif i > 170 and j < 125:
+                    continue
+                elif i > 180 and j < 140:
+                    continue
+                elif i > 200 and j < 155:
+                    continue
+                elif i > 217 and j < 170:
+                    continue
                 ic(item1)
                 ic(itemT)
 
@@ -54,12 +71,14 @@ class GUI:
                 self.img_optical = img_optical/img_optical.max()
 
                 # plot different homographies
+                
                 f, axarr = plt.subplots(1,2, figsize=(20, 10))
                 axarr[0].imshow(self.img_optical, cmap='gray')
                 axarr[0].set_title('img_optical nr. ' + str(i) + ' /221')
                 axarr[1].imshow(self.img_thermal, cmap='gray')
                 axarr[1].set_title('img thermal nr. ' + str(j) + ' /305')
                 plt.connect('key_press_event', self.choose_homography_key_event)
+                f.canvas.manager.set_window_title('n: no, y: yes, o: next optical, x: exit')
                 plt.show()
 
                 if self.chosen_key == "y":
@@ -69,20 +88,20 @@ class GUI:
                     print("yes")
                 elif self.chosen_key == "n":
                     print("no")
-                elif self.chosen_key == "q":
-                    print("quit")
+                elif self.chosen_key == "o":
+                    print("next optical")
                     break
     
     def choose_homography_key_event(self, event):
         if event.key == 'n':
             self.chosen_key = "n"
-            plt.close()  # Close the window when 'q' is pressed
+            plt.close()  
         elif event.key == 'y':
             self.chosen_key = "y"
-            plt.close()  # Close the window when 'q' is pressed
-        elif event.key == 'q':
-            self.chosen_key = "q"
-            plt.close()  # Close the window when 'q' is pressed
+            plt.close()  
+        elif event.key == 'o':
+            self.chosen_key = "o"
+            plt.close() 
         elif event.key == 'x':
             plt.close()
             exit()

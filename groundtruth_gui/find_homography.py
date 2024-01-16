@@ -258,7 +258,7 @@ if __name__ == "__main__":
     
     '''
     path_to_data = "/Users/antonia/dev/UNITN/remote_sensing_systems/data/ARSS_P3"
-    path_to_image_pairs = "/Users/antonia/dev/UNITN/remote_sensing_systems/arss_aerial_feature_matching/groundtruth_gui/pairs.txt"
+    path_to_image_pairs = "/Users/antonia/dev/UNITN/remote_sensing_systems/arss_aerial_feature_matching/groundtruth_gui/data/pairs/datapairs_best.txt"
 
     remove_duplicates(path_to_image_pairs)
 

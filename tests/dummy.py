@@ -11,24 +11,28 @@ import matplotlib.pyplot as plt
 import cv2
 import numpy as np
 
-file_labels_training = "/Users/antonia/dev/UNITN/remote_sensing_systems/arss_aerial_feature_matching/groundtruth_gui/labels_training.hdf5"
+'''
+file_labels_training = "/Users/antonia/dev/UNITN/remote_sensing_systems/multipoint/tmp/labels.hdf5"
 
 with h5py.File(file_labels_training, 'r') as f:
         #print(f.keys())
         ic(f.keys())
-        keyzero = list(f.keys())[0]
+        keyzero = list(f.keys())[1]
         print(f[keyzero].keys())
+        ic(list(f[keyzero]['keypoints']))
         #ic(list(f[keyzero]['keypoints']))
-        
+'''        
         
 
-file_training = "/Users/antonia/dev/UNITN/remote_sensing_systems/arss_aerial_feature_matching/groundtruth_gui/training.hdf5"
+file_training = "/Users/antonia/dev/UNITN/remote_sensing_systems/multipoint/data/data_multipoint/test.hdf5"
 
 with h5py.File(file_training, 'r') as f:
-        ic(f.keys())
-        keyzero = list(f.keys())[0]
-        ic(f[keyzero].keys())
+        #ic(f.keys())
         
+        for i in range(0, len(f.keys())):
+                keyzero = list(f.keys())[i]
+                ic(f[keyzero].keys())
+        ic(len(f.keys()))
         img = np.hstack((np.array(f[keyzero]['optical']), np.array(f[keyzero]['thermal'])))
         '''while(1):
             cv2.imshow('Image Pair with Keypoints', img)
